@@ -1,7 +1,7 @@
 # Balt-System NC interpreter
 function ocode = BSinterpreter(icode, iterLimit=1000)
     global iCode;
-    iCode = parseInputCode(icode);
+    iCode = BSparser(icode);
     initGlobals();
     blockNum = [1, 1];
     for i = 1 : iterLimit
@@ -17,127 +17,12 @@ endfunction
 global iCode;
 global labels vars cycles;
 global axMirrors axRot;
-global axes;
-
-
-# Parse all the blocks in input code
-function ocode = parseInputCode(icode)
-    for i = 1 : length(icode)
-        ocode{i} = parseBlock(icode{i});
-    endfor
-endfunction
-
-
-# Parse the block to sequence of tokens
-function parsedBlock = parseBlock(block)
-    block = deblank(block);
-    parsedBlock(1).tokType = "indent";
-    parsedBlock(1).content = 0;
-    isItIndent = true;
-    i = 0;
-    while (i < length(block))
-        i++;
-        sym = block(i);
-        if (isspace(sym))
-            if (isItIndent)
-                parsedBlock(1).content++;
-            endif
-            continue;
-        endif
-        isItIndent = false;
-        if (sym == "E")
-            token.tokType = "expression";
-            [token.content si ei] = extractArithmetic(block(i:end));
-            i += ei - 1;
-        elseif (isalpha(sym))
-            token.tokType = sym;
-            [token.content si ei] = readNumOrVar(block(++i:end));
-            i += ei - 1;
-        elseif (sym == "(")
-            token.tokType = "TSC";
-            [token.content si ei] = decompositeTSC(block(i:end));
-            i += ei - 1;
-        elseif (sym == "\"")
-            token.tokType = "label";
-            [si ei te token.content] = regexp(block(i:end), "(?<=\")[^\"]*(?=\")", "once");
-            i += ei;
-        elseif (sym == ";")
-            token.tokType = "comment";
-            token.content = strtrim(block(i+1:end));
-            i += length(block);     # Go out
-        else
-            error(["unknown symbol: \"", sym, "\" in block \"", block, ...
-                    "\" (position: ", num2str(i), ")"]);
-        endif
-        parsedBlock(end+1) = token;
-    endwhile
-endfunction
-
-
-# Extract arithmetic expression
-function [aexpr si ei] = extractArithmetic(expr)
-    commentStart = index(expr, ";");
-    if (commentStart == 0)
-        commentStart = length(expr) + 1;
-    endif
-    aexpr = deblank(expr(1:commentStart-1));
-    si = 1;
-    ei = length(aexpr);
-endfunction
-
-
-# Read addressed content (number or var) in string begining
-function [value si ei] = readNumOrVar(str)
-    [si ei te strCont] = regexp(str, "^ *(E[0-9]+|[+-]?[0-9.]+) *", "once");
-    strCont = strtrim(strCont);
-    if (isempty(strCont))
-        value = 0;
-        si = ei = 0;
-    elseif (strCont(1) == "E")
-        value = strCont;
-    else
-        value = strread(strCont, "%f");
-    endif
-endfunction
-
-
-# Extract three-symbol code like (OPERATION,ARG1,ARG2,...)
-# Return cell array with operation and args,
-#   indices of start and end TSC in expr-string
-function [tsc si ei] = decompositeTSC(expr)
-    si = index(expr,"(");                    # first symbol ( index of TSC
-    ei = si + rindex(expr(si:end),")") - 1;  # last symbol ) index of TSC
-    if (si == 0 || ei == si-1)
-        error("Invalid usage of parentheses");
-    endif
-    firstOpenBracketOccured = false;
-    openBracketsCount = 1;
-    paramsCount = 1;
-    tsc{paramsCount} = "";
-    for i = si + 1 : ei
-        if (expr(i) == ",")
-            tsc{paramsCount} = strtrim(tsc{paramsCount});
-            paramsCount++;
-            tsc{paramsCount} = "";
-            continue;
-        elseif (expr(i) == "(")
-            openBracketsCount++;
-        elseif (expr(i) == ")")
-            openBracketsCount--;
-            if (openBracketsCount == 0)
-                tsc{paramsCount} = strtrim(tsc{paramsCount});
-                ei = i;
-                return;
-            endif
-        endif
-        tsc{paramsCount} = [tsc{paramsCount}, expr(i)];
-    endfor
-endfunction
+global axes modalG;
 
 
 # Initilize global vars
 function initGlobals()
-    global iCode axMirrors vars axRot axes;
+    global iCode axMirrors vars axRot axes modalG;
     # Axes mirrors
     axMirrors.X = 1;
     axMirrors.Y = 1;
@@ -152,14 +37,17 @@ function initGlobals()
     axes.X = 0;
     axes.Y = 0;
     axes.Z = 0;
+    # G codes
+    modalG = switchModalG([0, 29, 40, 90]);
 endfunction
 
 
 # Process the block
 function [block blockToGo] = processBlock(blockNum)
-    global iCode axMirrors axRot cycles labels axes;
+    global iCode axMirrors axRot cycles labels axes modalG;
     b = iCode{blockNum(1)};
     i = blockNum(2) - 1;
+    ro = alp = NaN;     # Polar radius and angle for axes rotation
     if (i >= length(b))  block = [];  endif    # supress warnings
     while (i < length(b))
         i++;
@@ -222,7 +110,7 @@ function [block blockToGo] = processBlock(blockNum)
                                 axMirrors.J = -1;
                             endif
                         endfor
-                        continue;
+                        #continue;
                     case "DIS"
                         for d = 2 : length(c)
                             isItVar = varInBegining(c{d});
@@ -237,10 +125,9 @@ function [block blockToGo] = processBlock(blockNum)
                     case "URT"
                         axRot = readValue(c{2});
                         t.content{2} = num2str(axRot);
-                    case "SGI"
-                        warning("SGI code is not supported");
-                    case "SPE"
-                        warning("SPE code is not supported");
+			continue;
+                    otherwise
+                        warning([c{1}, " code is not supported"]);
                 endswitch
             case {"indent", "comment"}
                 # Do nothing
@@ -250,12 +137,60 @@ function [block blockToGo] = processBlock(blockNum)
                 endif
                 continue;
             case "expression"
-                processArithmetic(c);
+                calculateExpression(arithmeticParser(c));
                 continue;
+                
             case "X"
-                t.content = axMirrors.X * readValue(c);
+                x = axMirrors.X * readValue(c);
+                isG90 = isGCodeActual(b, 90);
+                if (isG90)
+                    axes.X = x;
+                else
+                    axes.X += x;
+                endif
+                if (isnan(ro))
+                    y = valueAtAddr(b, "Y");
+                    if (isnan(y))
+                        if (isG90)
+                            y = axes.Y;
+                        else
+                            y = 0;
+                        endif
+                    endif
+                    if (x == 0)
+                        alp = 90;
+                    else
+                        alp = atand(y/x);
+                    endif
+                    ro = norm([x y]);
+                endif
+                t.content = ro * cosd(alp + axRot);
             case "Y"
-                t.content = axMirrors.Y * readValue(c);
+                y = axMirrors.Y * readValue(c);
+                isG90 = isGCodeActual(b, 90);
+                if (isG90)
+                    axes.Y = y;
+                else
+                    axes.Y += y;
+                endif
+                if (isnan(ro))
+                    x = valueAtAddr(b, "X");
+                    if (isnan(x))
+                        if (isG90)
+                            x = axes.X;
+                        else
+                            x = 0;
+                        endif
+                    endif
+                    if (x == 0)
+                        alp = 90;
+                    else
+                        alp = atand(y/x);
+                    endif
+                    ro = norm([x y]);
+                endif
+                t.content = ro * sind(alp + axRot);
+                
             case "Z"
                 t.content = axMirrors.Z * readValue(c);
             case "I"
@@ -268,6 +203,7 @@ function [block blockToGo] = processBlock(blockNum)
                 t.content = readValue(c);
             case {"G"}
                 t.content = mirrorG(readValue(c));
+                modalG = switchModalG(t.content);
             case {"M", "N", "S", "T"}
                 t.content = readValue(c);
             otherwise
@@ -304,13 +240,37 @@ endfunction
 
 
 # Is label present in labels list
-function flag = isLabelPresent(label)
+function isPresent = isLabelPresent(label)
     global labels;
-    flag = exist("labels", "var") && isfield(labels, label);
+    isPresent = exist("labels", "var") && isfield(labels, label);
 endfunction
 
 
-# Read the number or var from string begining
+# Is var present in var list
+function flag = isVarPresent(varStr)
+    global vars;
+    flag = exist("vars", "var") && isfield(vars, varStr);
+endfunction
+
+
+# Is variable occurs in expression begining
+function [isItVar varSI varEI varName] = varInBegining(expr)
+    [varSI varEI] = regexp(expr, "^( *E *)", "once");
+    if (isempty(varSI))
+        isItVar = false;
+        varSI = varEI = 0;
+        varName = "";
+    else
+        isItVar = true;
+        [varNumSI varNumEI te varNumStr] = ...
+                regexp(expr(varEI+1:end), "^( *[0-9]+)", "once");
+        varEI += varNumEI;
+        varName = ["E", varNumStr];
+    endif
+endfunction
+
+
+# Read the number or var from begining of the string
 function [val si ei] = readValue(str)
     global vars;
     if (isnumeric(str))
@@ -334,23 +294,6 @@ function [val si ei] = readValue(str)
             val = 0;
             ei = si = 0;
         endif
-    endif
-endfunction
-
-
-# Is variable occurs in expression begining
-function [isItVar varSI varEI varName] = varInBegining(expr)
-    [varSI varEI] = regexp(expr, "^( *E *)", "once");
-    if (isempty(varSI))
-        isItVar = false;
-        varSI = varEI = 0;
-        varName = "";
-    else
-        isItVar = true;
-        [varNumSI varNumEI te varNumStr] = ...
-                regexp(expr(varEI+1:end), "^( *[0-9]+)", "once");
-        varEI += varNumEI;
-        varName = ["E", varNumStr];
     endif
 endfunction
 
@@ -385,26 +328,53 @@ function G = mirrorG(G)
 endfunction
 
 
-# Is var present in var list
-function flag = isVarPresent(varStr)
-    global vars;
-    flag = exist("vars", "var") && isfield(vars, varStr);
+# Is G codes actual
+function actual = isGCodeActual(block, G)
+    global modalG;
+    GInBlock = [];
+    for i = 1 : length(block)
+        t = block(i);
+        if (strcmp(t.tokType, "G"))
+            GInBlock(end+1) = t.content;
+        endif
+    endfor
+    mG = switchModalG(GInBlock);
+    fnames = fieldnames(mG);
+    actual = zeros(1, length(G));
+    for i = 1 : length(fnames)
+        fn = fnames{i};
+        actual |= G == mG.(fn);
+    endfor
 endfunction
 
 
-# Evaluate expression
-function res = processArithmetic(expr)
-    tree = arithmeticParser(expr);
-    res = calculateExpression(tree);
+# Switch G codes
+function mG = switchModalG(G)
+    global modalG;
+    mG = modalG;
+    for i = 1 : length(G)
+        switch G(i)
+            case {0, 1, 2, 3}
+                mG.G0G1G2G3 = G(i);
+            case {27, 28, 29}
+                mG.G27G28G29 = G(i);
+            case {40, 41, 42}
+                mG.G40G41G42 = G(i);
+            case {90, 91}
+                mG.G90G91 = G(i);
+            case {94, 95}
+                mG.G94G95 = G(i);
+        endswitch
+    endfor
 endfunction
 
 
-# Find value of the address (UNUSED)
-function value = getValueAtAddr(token, addr)
+# Find value of the address
+function value = valueAtAddr(block, addr)
     value = NaN;
-    for i = 1 : length(token)
-        if (token.tokType == addr)
-            value = token.content;
+    for i = 1 : length(block)
+        if (strcmp(block(i).tokType, addr))
+            value = block(i).content;
             break;
         endif
     endfor
@@ -413,7 +383,6 @@ endfunction
 
 # Convert parsed block to string
 function str = block2str(block)
-    # TO-DO: check token precedence in block and sort
     str = "";
     for i = 1 : length(block)
         c = block(i).content;
@@ -429,7 +398,7 @@ function str = block2str(block)
                 s = TSC2string(c);
             case "label"
                 s = ["\"", c, "\""];
-                #error("label found while converting block to string");
+                error("label found while converting block to string");
             case "comment"
                 s = [";", c];
             otherwise
@@ -445,3 +414,4 @@ endfunction
 function str = TSC2string(tsc)
     str = ["(", strjoin(tsc, ", "), ")"];
 endfunction
+

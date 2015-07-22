@@ -196,7 +196,7 @@ endfunction
 # Remove unnecessary expressions
 function expr = optimizeTree(expr);
     #TO-DO: group same operators
-    n = nfields(expr) - 2;
+    n = numfields(expr) - 2;
     for i = 1 : n
         a = ["arg", num2str(i)];
         if (isfield(expr, a) && ~isempty(expr.(a)))
