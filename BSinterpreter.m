@@ -110,7 +110,7 @@ function [block blockToGo] = processBlock(blockNum)
                                 axMirrors.J = -1;
                             endif
                         endfor
-                        #continue;
+                        continue;
                     case "DIS"
                         for d = 2 : length(c)
                             isItVar = varInBegining(c{d});
@@ -124,7 +124,7 @@ function [block blockToGo] = processBlock(blockNum)
                         # Do nothing
                     case "URT"
                         axRot = readValue(c{2});
-                        t.content{2} = num2str(axRot);
+                        #t.content{2} = num2str(axRot);
 			continue;
                     otherwise
                         warning([c{1}, " code is not supported"]);
