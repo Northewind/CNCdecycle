@@ -1,0 +1,45 @@
+;DETAL: TEST6 (ARITHMETICS)
+(DIS,"PROVERKA")
+
+;E30 = 0 assignment
+E30=0
+(DIS,E30)
+
+;E31 = 1 assignment
+E31=1
+(DIS,E31)
+
+;E32 = 15 assignment
+E32=+15
+(DIS,E32)
+
+;E33 = -25.2 assignment
+E33=-25.2
+(DIS,E33)
+
+;E34 = 0.5 assignment
+E34=0.5
+(DIS,E34)
+
+;E35 = E34 assignment
+E35=E34
+(DIS,E35)
+
+
+;E30 = 100 - E31*COS(2*E32) calculating (ans=99.134)
+E30=100-E31*COS(2*E32)
+(DIS, E30)
+
+;E31 = (100 - E31)*COS(2*E32) + 5 calculating (ans=90.737)
+E31=(100-E31)*COS(2*E32)+5
+(DIS, E31)
+
+;E32 = E31*SIN(E30) + 123.4567/SQR(16) calculating (ans=90.068)
+E32=E31*SIN(E30)+123.4567/SQR(16)
+(DIS, E32)
+
+;E33 calculating (ans=-1786.369)
+E33 = -2*E30*(-E35) + ABS(TAN(E30))*3.4*(-E32 + COS(E33)) - SIN(SQR(E34 - E35)/2)
+(DIS, E33)
+
+"end" M30

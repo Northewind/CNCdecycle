@@ -1,0 +1,77 @@
+;DETAL: TEST8 (CONDITION OPERATOR)
+
+;E30 = 0
+E30=0
+;E31 = 1
+E31=1
+;E31 > E30 ?
+(BGT,E31,E30,pass1)
+(BNC,error)
+"pass1" (DIS,"yes!");
+
+;E31 >= E30 ?
+(BGE,E31,E30,pass2)
+(BNC,error)
+"pass2" (DIS,"yes!");
+
+
+;E30 = -8
+E30=-8
+;E31 = 0
+E31=0
+;E30 < E31 ?
+(BLT,E30,E31,pass4)
+(BNC,error)
+"pass4" (DIS,"yes!");
+
+;E30 <= E31 ?
+(BLE,E30,E31,pass5)
+(BNC,error)
+"pass5" (DIS,"yes!");
+
+
+;E30 = 1.28
+E30=1.28
+;E31 = 1.28
+E31=1.28
+;E30 <= E31 ?
+(BLE,E30,E31,pass6)
+(BNC,error)
+"pass6" (DIS,"yes!");
+
+;E30 >= E31 ?
+(BGE,E30,E31,pass7)
+(BNC,error)
+"pass7" (DIS,"yes!");
+
+;E30 == E31 ?
+(BEQ,E30,E31,pass8)
+(BNC,error)
+"pass8" (DIS,"yes!");
+
+
+;E30 = -53.8
+E30=-53.8
+;E31 = 53.8
+E31=53.8
+;E30 != E31 ?
+(BNE,E30,E31,pass9)
+(BNC,error)
+"pass9" (DIS,"yes!");
+
+;E30 == E31 ?
+(BEQ,E30,E31,error)
+(DIS,"no!");
+
+;E30 >= E31 ?
+(BGT,E30,E31,error)
+(DIS,"no!");
+
+;E31 <= E30 ?
+(BLE,E31,E30,error)
+(DIS,"no!");
+
+
+(BNC,end)
+"error" (DIS,"ERROR!!!")
+"end" M30

@@ -1,0 +1,38 @@
+;DETAL: TEST2 (NESTED LOOPS, EPP)
+;OPERACIYA: SVERLENIE
+
+N10 G0 G29 G40 G95
+G90
+T1.1 M6
+S3000 M3 M8
+G0 X0 Y0
+(BNC, DR1)
+"DR0"
+    ;DRILLING
+    G90 G0 Z100
+    G1 Z84 F2
+    Z80 F0.2
+    G28
+    (RPT, 4)
+        G91 Z-20 F0.08
+        Z0.5 F0.5
+        Z-0.5 F0.2
+    (ERP)
+    G90 G29 G0 Z100
+"DR1"
+(RPT  , 3)
+    ;NEXT ROW
+    (RPT,6)
+        ;NEXT COLUMN
+        G91 X50
+        G90
+        (EPP,DR0,DR1)
+    (ERP)
+    G90 X0
+    G91 Y60
+    G90
+(ERP)
+;END OF CYCLES
+G90 G79 G0 Z0
+G79 X0 Y0
+M2
