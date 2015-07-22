@@ -1,7 +1,7 @@
 # Balt-System NC interpreter
 function ocode = BSinterpreter(icode, iterLimit=1000)
     global iCode;
-    iCode = BSparser(icode);
+    iCode = BSlexer(icode);
     initGlobals();
     blockNum = [1, 1];
     for i = 1 : iterLimit

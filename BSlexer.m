@@ -1,5 +1,5 @@
 # Parse all the blocks in input code
-function ocode = BSparser(icode)
+function ocode = BSlexer(icode)
     for i = 1 : length(icode)
         ocode{i} = parseBlock(icode{i});
     endfor
