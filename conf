@@ -1,0 +1,4 @@
+type            = Balt-System
+inputFile       = tests/TEST9
+outputFile      = tests/OUTPUTPROG
+maxIterations   = 10000
